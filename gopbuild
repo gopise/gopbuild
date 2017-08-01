@@ -1,0 +1,379 @@
+#!/bin/bash
+
+TARGET=$1
+ACTION=$2
+
+# Early function
+# -------------------------------
+function show_help() 
+{
+    echo "GOPBUILD simple Linux build system"
+    echo "Usage information:"
+    echo ""
+    echo "Step 1: Setup the environment before doing anything:"
+    echo -e "\e[92m  source envsetup\e[0m"
+    echo "  "
+    echo "Step 2: Under the environment, run gmk to do building:"
+    echo -e "\e[92m  gmk [TARGET] [ACTION]\e[0m"
+    echo "  [TARGET]: "
+    echo "      Target module to be compiled"
+    echo "      Available options: all/uboot/kernel/rootfs/sdimage/reset"
+    echo "      Default: all"
+    echo "  [ACTION]:"
+    echo "      Actions to be done on current target"
+    echo "      Available options: config/clean"
+    echo "      Default: call without this parameter will do 'build' on the target"
+    echo "  "
+    echo "Example:"
+    echo "  1. Build all for current device:"
+    echo "       gmk"
+    echo "  2. Build kernel:"
+    echo "       gmk kernel"
+    echo "  3. Clean uboot:"
+    echo "       gmk uboot clean"
+    echo "  4. Run configure for kernel:"
+    echo "       gmk kernel config"
+    echo "  5. Clean all for current device:"
+    echo "       gmk all clean"
+    echo "  6. Clean everything for all devices:"
+    echo "       gmk reset"
+    echo "  "
+    echo "Log will be store under 'output/log/ for build action. No log will be stored for clean/config action." 
+    echo "By Gopise 2014/11/12"
+    return
+}
+
+
+# Environment check
+# -------------------------------
+if [ "$ENV_READY" = "" ]; then
+    echo -e "\e[91mPlease setup the environment through 'source envsetup' before doing anything!\e[0m"
+    echo ""
+    show_help
+    exit
+fi
+
+# Parameter check: TARGET
+# -------------------------------
+# Check the TARGET
+if [ "$TARGET" = "" ]; then
+    TARGET=all
+    #exit
+elif [ "$TARGET" = "help" -o "$TARGET" = "-?" ]; then
+    show_help
+    exit
+else
+    true
+fi
+
+# Parameter check: ACTION
+# -------------------------------
+if [ "$ACTION" = "config" -o "$ACTIVE" = "clean" -o "$ACTION" = "" ]; then
+    true
+else
+    cechow "Unknown action: $ACTION !!!"
+    exit
+fi
+
+
+# Print all configurations
+# -------------------------------
+function show_config() 
+{
+    # Note: using 'echo' instead of env directly is to remove dummy space.
+    cechoa "Current configurations:"
+    cechoa "----------------------------------------------------"
+    cechoa "Device \t= \t'$ACTIVE_DEVICE'"
+    cechoa "uboot \t= \t'$UBOOT_CFG'"
+    cechoa "kernel \t= \t'$KERNEL_CFG'"
+    cechoa "rootfs \t= \t'$ROOTFS_BASE' + '$(echo $ROOTFS_ADDON)'"
+    cechoa "dtb \t= \t'$(echo $KERNEL_DTB)'"
+    cechoa "----------------------------------------------------"
+    return
+}
+
+
+# Log and other configuration
+# -------------------------------
+LOGFILE=make-$TARGET-$(date +%Y%m%d-%H-%M-%S).log
+#ROOT_DIR=$(pwd)
+export USE_CCACHE=1
+#export CCACHE_DIR=$ROOT_DIR/out/ccache
+#prebuilts/misc/linux-x86/ccache/ccache -M 20G
+
+# Loopback check
+# -------------------------------
+if [ "$READY_RUN" = "" ]; then    
+    export READY_RUN=yes
+    # Clean?
+    if [ "$ACTION" = "clean" -o "$ACTION" = "config" ]; then
+        cecho "No loopback or log for clean and config action, proceeding..."
+        # Skip loopback. This is to fix an issue with calling "dialog" tool in another shell.
+    else    
+        cecho "Called from user. Calling the real one with logging..."
+        mkdir -p $OUTPUT_DIR/log/
+        exec $0 $1 $2 $3 $4 $5 $6 $7 $8 $9 2>&1 | tee "$OUTPUT_DIR/log/$LOGFILE"
+        exit
+    fi
+else
+    # Called from myself, going through...
+    true
+fi
+
+
+# Functions
+# -------------------------------
+
+function process_uboot() 
+{
+    local act=$1
+
+    # Build start here...
+    cd $ROOT_DIR/$UBOOT_DIR/
+
+    if [ "$act" = "config" ]; then
+        cechoi "Configure the uboot..."
+        ./$MODULE_SCRIPT_NAME "-config" $UBOOT_CFG
+    elif [ "$act" = "clean" ]; then
+        cechoi "Clean the uboot build environment."
+        ./$MODULE_SCRIPT_NAME "-c"
+    else
+        cechoi "Building uboot..."
+        ./$MODULE_SCRIPT_NAME "-b" $UBOOT_CFG
+        #./$MODULE_SCRIPT_NAME "-i"
+    fi
+
+    cd $ROOT_DIR
+    return
+}
+
+function process_kernel() 
+{
+    local act=$1
+
+    # Setup additional environment here
+    #export PATH=$ROOT_DIR/bootable/bootloader/$UBOOT_DIR/tools:$PATH
+
+    # Build start here...
+    cd $ROOT_DIR/$KERNEL_DIR
+
+    if [ "$act" = "config" ]; then
+        cechoi "Configure the kernel (default config: $KERNEL_CFG)..."
+        ./$MODULE_SCRIPT_NAME "-config" $KERNEL_CFG
+    elif [ "$act" = "clean" ]; then
+        cechoi "Clean the linux build environment."
+        ./$MODULE_SCRIPT_NAME "-c"
+    else     
+        cechoi "Building kernel..."
+        ./$MODULE_SCRIPT_NAME "-b" $KERNEL_CFG "$KERNEL_DTB"
+        #./$MODULE_SCRIPT_NAME "-i" $KERNEL_CFG
+    fi
+
+    cd $ROOT_DIR
+    return
+}
+
+function process_user_all()
+{
+    local act=$1
+
+    # Process ROOTFS_ADDON
+    cechoi "Processing all rootfs packages..."
+    package_list=$(echo $ROOTFS_ADDON)
+    for package in $package_list; do
+        cechoi "Processing $package"
+        # Call into the building script of each package
+        cd $ROOT_DIR/rootfs/$package
+        ./$MODULE_SCRIPT_NAME ${act}
+        $CLASS_COMMON_EXIT_ONFAILURE
+    done
+    cd $ROOT_DIR
+    return
+}
+
+function process_uboot_install() 
+{
+    local act=$1
+
+    cd $ROOT_DIR/$UBOOT_DIR
+
+    if [ "${act}" = "clean" ]; then
+        return
+    elif [ "${act}" = "config" ]; then
+        return
+    else
+        cechoi "Processing kernel modules..."
+        ./$MODULE_SCRIPT_NAME "-i"
+    fi
+
+    cd $ROOT_DIR
+    return
+}
+
+
+function process_kernel_install() 
+{
+    local act=$1
+
+    cd $ROOT_DIR/$KERNEL_DIR
+
+    if [ "${act}" = "clean" ]; then
+        #rm -rf $OUTPUT_DIR/modules/lib/modules/*
+        return
+    elif [ "${act}" = "config" ]; then
+        return
+    else
+        cechoi "Processing kernel modules..."
+        ./$MODULE_SCRIPT_NAME "-i"
+    fi
+
+    cd $ROOT_DIR
+    return
+}
+
+function process_rootfs()
+{
+    local act=$1
+
+    if [ "$act" = "config" ]; then
+        cechoi "Configure the rootfs..."
+        process_kernel_install $act
+        process_user_all "-p"
+    elif [ "$act" = "clean" ]; then
+        cechoi "Clean the rootfs build environment."
+        process_kernel_install $act
+        process_user_all "-c"       
+    else
+        cechoi "Building/customizing rootfs..."
+        # Build start here...
+        cd $ROOT_DIR
+
+        # Uncompress base rootfs if not exists
+        if [ ! -e $OUTPUT_DIR/rootfs/ ]; then
+            cechoi "Uncompress the base rootfs into output folder..."
+            mkdir -p $OUTPUT_DIR/rootfs
+            tar -xjf $ROOTFS_DIR/base/$ROOTFS_BASE -C $OUTPUT_DIR/rootfs/
+        fi
+
+        cechoi "Build and update the rootfs folder by calling other process functions"
+        process_kernel_install $act
+        process_user_all $act
+
+        cechoi "Make a tgz of the final rootfs"
+        sudo tar -C $OUTPUT_DIR/rootfs -cjf $OUTPUT_DIR/$ROOTFS_TARGET ./
+    fi
+
+    return
+}
+
+function process_sdimage()
+{
+    local act=$1
+
+    if [ "$act" = "config" ]; then
+        #cechoi "Configure the rootfs..."
+        true
+    elif [ "$act" = "clean" ]; then
+        #cechoi "Clean the sdimage build environment."
+        true
+    else
+        cd $OUTPUT_DIR
+        # Calling into mksdimage script to make the image
+        mksdimage yocto
+    fi
+
+    cd $ROOT_DIR
+}
+
+function process_all() 
+{
+    local act=$1
+
+    cecho "Processing all components..."
+
+    # Call for all
+    process_uboot $act
+    process_kernel $act
+    process_rootfs $act
+    #process_sdimage $act
+
+    # Reserved for future...
+    if [ "$act" = "config" ]; then
+        # TBD... 
+        return
+    elif [ "$act" = "clean" ]; then 
+        cechow "WARNING: cleaning all will delete all files under $OUTPUT_DIR !!!"
+
+        # Clean the whole device output folder, add a protection to avoid 
+        # deleting the root of the PC.
+        if [ "$OUTPUT_DIR" = "" -o "$OUTPUT_DIR" = "/" ]; then
+            cechow "WARNING: The output dir is not properly configured!!! [$OUTPUT_DIR]"
+        else
+            rm -rf $OUTPUT_DIR/*
+        fi
+    fi
+
+    return
+}
+
+function main() 
+{
+    local act=$1
+    local starttime endtime
+    starttime="START: "$(date +%Y%m%d-%H:%M:%S)
+
+    cechoi "Build script for linux BSP"
+
+    # Print current configurations
+    cecho ""
+    show_config
+    cecho ""
+
+    # Create the output folder if not exists
+    if [ ! -e $OUTPUT_DIR ]; then 
+        mkdir -p $OUTPUT_DIR
+    fi
+   
+    if [ "$TARGET" = "all" ]; then 
+        process_all $act
+    elif [ "$TARGET" = "uboot" ];then
+        process_uboot $act
+    elif [ "$TARGET" = "kernel" ];then
+        process_kernel $act
+    elif [ "$TARGET" = "rootfs" ];then
+        process_rootfs $act
+    elif [ "$TARGET" = "sdimage" ];then
+        process_sdimage $act
+    elif [ "$TARGET" = "reset" ]; then
+        cechow "WARNING: Doing reset will clean everything including all files under $OUTPUT_ROOT !!!"
+        # Clean all files for current device
+        process_all "clean"
+
+        # Clean the whole output folder, add a protection to avoid
+        # deleting the root of the PC.
+        if [ "$OUTPUT_ROOT" = "" -o "$OUTPUT_ROOT" = "/" ]; then
+            cechow "WARNING: The output dir is not properly configured!!! [$OUTPUT_ROOT]"
+        else
+            rm -rf $OUTPUT_ROOT/*
+        fi
+    else
+        cechow "Unknown target to be built!"
+    fi
+
+    cechoi "Done!"
+    
+    # Record the end time and print it to log.
+    endtime="  END: "$(date +%Y%m%d-%H:%M:%S)
+    cecho "" 
+    cechoi "--------------------------------------------------------------"
+    cechoi "${starttime}"
+    cechoi "${endtime}"
+}
+
+# Loopback check
+# -------------------------------
+if [ "$READY_RUN" = "yes" ]; then
+    # Call into main function
+    main $ACTION
+fi
+

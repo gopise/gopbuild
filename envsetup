@@ -1,0 +1,646 @@
+#!/bin/bash
+
+# Environment setup script.
+# Call with "source" or "."
+
+ACTIVE_DEVICE=$1
+
+#########################################################################
+# Environment configurations
+#########################################################################
+
+# Folder/file name configurations
+# -----------------------------------------------------------------------
+export ROOT_DIR=$(cd $(dirname $BASH_SOURCE) && pwd)
+
+# Names for folders in the root:
+export UBOOT_DIR=uboot
+export KERNEL_DIR=kernel
+export ROOTFS_DIR=rootfs
+export ROOTFS_TARGET=rootfs.tar.bz2
+export SDIMAGE_NAME=fsl-image.sdcard
+export OUTPUT_ROOT=$ROOT_DIR/output
+
+export MAKE_THREADS="-j 4"
+
+export MODULE_SCRIPT_NAME=gopcook.sh
+export MAIN_SCRIPT_NAME=gopbuild
+
+# Configure how to make the sdcard image
+# -----------------------------------------------------------------------
+export CFG_SDIMAGE_DEFAULT="yocto"
+
+# Device related configurations
+# -----------------------------------------------------------------------
+source build.cfg
+
+# Using "_UBOOT_CFG" as a anchor to search for supported 
+# device configurations
+export SUPPORTED_DEVICE=$(env | grep _UBOOT_CFG | sed "s/_UBOOT_CFG.*//")
+export SUPPORTED_SDK=$(find $ROOT_DIR/sdk/* -maxdepth 0 -type d -a -not -iname "." -printf "%f ")
+export DEFAULT_SDK=a9
+
+
+#########################################################################
+# Common functions and properties
+#########################################################################
+
+# Color echo
+# -----------------------------------------------------------------------
+# Common properties:
+#export CLASS_COMMON_HEADER="#!/bin/bash"
+
+# Color echo definitions
+export COLOR_ECHO_HEAD="\033["
+export COLOR_ECHO_TAIL="\033[0m"
+
+# Foreground color
+export CHAR_BLACK="30"
+export CHAR_WHITE="33"
+
+export CHAR_RED="31"
+export CHAR_GREEN="32"
+export CHAR_YELLOW="33"
+export CHAR_BLUE="34"
+
+export CHAR_LRED="91"
+export CHAR_LGREEN="92"
+export CHAR_LYELLOW="93"
+export CHAR_LBLUE="94"
+
+# Background color
+export BACK_BLACK="40"
+export BACK_WHITE="43"
+
+export BACK_RED="41"
+export BACK_GREEN="42"
+export BACK_YELLOW="43"
+export BACK_BLUE="44"
+
+export BACK_LRED="101"
+export BACK_LGREEN="102"
+export BACK_LYELLOW="103"
+export BACK_LBLUE="104"
+
+function color_echo() {
+    local level=$1
+    local string="$2 $3 $4 $5 $6"
+    local color=""
+
+    if [ "${level}" = "inf" ]; then
+        color="$CHAR_LBLUE"
+    elif [ "${level}" = "att" ]; then
+        color="$CHAR_LGREEN"
+    elif [ "${level}" = "war" ]; then
+        color="$CHAR_LYELLOW"
+    elif [ "${level}" = "err" ]; then
+        color="$CHAR_LRED"
+    else
+        echo -e ${string}
+        return
+    fi
+
+    echo -e "$COLOR_ECHO_HEAD${color}m${string}$COLOR_ECHO_TAIL"
+    return
+}
+function cechon() {
+    color_echo "nor" "$1 $2 $3 $4 $5 $6 $7 $8 $9"
+}
+function cechoi() {
+    color_echo "inf" "$1 $2 $3 $4 $5 $6 $7 $8 $9"
+}
+function cechoa() {
+    color_echo "att" "$1 $2 $3 $4 $5 $6 $7 $8 $9"
+}
+function cechow() {
+    color_echo "war" "$1 $2 $3 $4 $5 $6 $7 $8 $9"
+}
+function cechoe() {
+    color_echo "err" "$1 $2 $3 $4 $5 $6 $7 $8 $9"
+}
+function cecho() {
+    color_echo "nor" "$1 $2 $3 $4 $5 $6 $7 $8 $9"
+}
+
+export -f color_echo
+
+# Normal
+export -f cechon
+# Information/configuration
+export -f cechoi
+# Attention! Need input
+export -f cechoa
+# Warning!
+export -f cechow
+# Error
+export -f cechoe
+# Normal
+export -f cecho
+
+
+# Common tool functions
+# -----------------------------------------------------------------------
+
+function common_exit_onfailure() {
+    if [ $? -ne 0 ]; then
+        cechoe "Error($?) found!!!!"
+        exit $?
+    fi
+}
+export -f common_exit_onfailure
+export CLASS_COMMON_EXIT_ONFAILURE="common_exit_onfailure $@"
+
+
+function common_setup_param() {
+    :
+}
+export -f common_setup_param
+export CLASS_COMMON_SETUP_PARAM="common_setup_param"
+
+
+function common_check_env()
+{
+    local root_dir=$(echo $ROOT_DIR)
+
+    if [ "${root_dir}" = "" ]; then
+        cechow "Please call 'envsetup' before doing any action on project! Exiting..."
+        exit
+    #else
+        #echo "ENV checking passed! Proceeding..."
+        #echo "ALL_PARAM=$ALL_PARAM"
+    fi
+}
+export -f common_check_env
+export CLASS_COMMON_CHECK_ENV="common_check_env"
+
+
+
+function common_main()
+{
+    local action=$ALL_PARAM_P1
+    
+    if [ "${action}" = "" ]; then
+        #do_prepare $ALL_PARAM_P2 $ALL_PARAM_P3 $ALL_PARAM_P4
+        do_build $ALL_PARAM_P2 $ALL_PARAM_P3 $ALL_PARAM_P4
+        do_install $ALL_PARAM_P2 $ALL_PARAM_P3 $ALL_PARAM_P4
+    elif [ "${action}" = "-p" -o "${action}" = "-config" ]; then
+        do_prepare $ALL_PARAM_P2 $ALL_PARAM_P3 $ALL_PARAM_P4
+    elif [ "${action}" = "-b" ]; then
+        do_build $ALL_PARAM_P2 "$ALL_PARAM_P3" $ALL_PARAM_P4
+    elif [ "${action}" = "-i" ]; then
+        do_install $ALL_PARAM_P2 $ALL_PARAM_P3 $ALL_PARAM_P4
+    elif [ "${action}" = "-c" ]; then
+        do_clean $ALL_PARAM_P2 $ALL_PARAM_P3 $ALL_PARAM_P4
+    else
+        cechow "Unknown action: ${action} !"
+    fi
+}
+export -f common_main
+export CLASS_COMMON_MAIN="common_main"
+
+function gmk()
+{
+    local cur_dir=$(pwd)
+    if [ "${cur_dir}" = "$ROOT_DIR" ]; then
+        ./$MAIN_SCRIPT_NAME $1 $2 $3 $4 $5
+    else
+        ./$MODULE_SCRIPT_NAME $1 $2 $3 $4 $5
+    fi
+}
+export -f gmk
+
+
+# mksdimage functions
+# -----------------------------------------------------------------------
+
+function mksdimage_android()
+{
+    # Under construction!
+    exit
+}
+export -f mksdimage_android
+
+
+# Configurations
+# ---------------------------------------
+export MKSDIMAGE_UBOOT=u-boot.imx
+export MKSDIMAGE_KERNEL=zImage
+export MKSDIMAGE_ROOTFS=$ROOTFS_TARGET
+
+# boot partition (FAT partition holding kernel and dtb) size, in MB:
+export MKSDIMAGE_BOOT_SIZE_MB=50
+# rootfs partition size, in MB:
+export MKSDIMAGE_ROOTFS_SIZE_MB=1024
+
+function mksdimage_checkimage()
+{
+    if [ ! -s $MKSDIMAGE_UBOOT ]; then
+        cechoe "'$MKSDIMAGE_UBOOT' is not found in current folder!"
+        return 1
+    elif [ ! -s $MKSDIMAGE_KERNEL ]; then
+        cechoe "'$MKSDIMAGE_KERNEL' is not found in current folder!"
+        return 1
+    elif [ ! -s $MKSDIMAGE_ROOTFS -a ! -e rootfs ]; then
+        cechoe "'$MKSDIMAGE_ROOTFS' or a 'rootfs/' folder is not found in current folder!"
+        return 1
+    #elif [ ! -s "*.dtb" ]; then
+    #        return 1
+    else
+        return 0
+    fi
+}
+export -f mksdimage_checkimage
+
+function mksdimage_yocto()
+{
+    cecho "Making SDIMAGE for yocto"
+
+    # Check if everything is in place before start.
+    mksdimage_checkimage
+    if [ $? -ne 0 ]; then
+        cechoe "Some files are missing!"
+        cechow "Please make sure the following items are ready under $(pwd) before calling me:"
+        cechow "\t1. '$MKSDIMAGE_UBOOT'"
+        cechow "\t2. '$MKSDIMAGE_KERNEL' and corresponding '*.dtb' files."
+        cechow "\t3. '$MKSDIMAGE_ROOTFS' disk image file OR a 'rootfs' folder contains all rootfs files"
+        cechoe "Aborting!"
+        return
+    fi
+
+    # Make and enter working folder
+    mkdir _sdimage_
+    cd _sdimage_
+
+    # Configures:
+    local rootfs_size=$(expr $MKSDIMAGE_ROOTFS_SIZE_MB \* 1024)
+    local boot_size=$(expr $MKSDIMAGE_BOOT_SIZE_MB \* 1024)
+
+    local uboot_size=$(expr 4 \* 1024)
+    local space_size=$(expr 4 \* 1024)
+
+    local sdcard_size=$(expr ${uboot_size} + ${boot_size} + ${space_size} + ${rootfs_size} + ${space_size})
+
+    #exit
+
+    # Prepare the boot partition image file
+    # ------------------------------------------------
+    # Create spare file
+    dd if=/dev/zero of=boot.fat bs=1 count=0 seek=$(expr 1024 \* ${boot_size})
+
+    # Format the loop disks
+    mkfs.vfat boot.fat
+    
+    # Mount loop disks
+    mkdir boot-fat
+    mount -o loop boot.fat boot-fat
+
+    # Copy files into boot partition
+    cp ../$MKSDIMAGE_KERNEL boot-fat
+    cp ../*.dtb boot-fat
+    sync
+
+    # Umount the boot partition
+    umount boot-fat
+    #rm -rf boot-fat
+   
+    if [ ! -s boot.fat ]; then
+        cechoe "Failed to generate boot.fat! Aborting..."
+        cd ..
+        rm -rf _sdimage_
+        return
+    fi
+
+    # Prepare the rootfs partition image file
+    # ------------------------------------------------
+    if [ ! -s ../$MKSDIMAGE_ROOTFS ]; then
+        # Create a sparse image
+        dd if=/dev/zero of=rootfs.ext bs=1 count=0 seek=$(expr 1024 \* ${rootfs_size})
+
+        # Format the image
+        mkfs.ext3 -F rootfs.ext
+
+        # Mount the loop disk
+        mkdir rootfs-ext
+        mount -o loop rootfs.ext rootfs-ext
+
+        # Copy all files to the loop disk
+        cp -a ../rootfs/* rootfs-ext/
+        sync
+
+        # Umount the loop disk
+        umount rootfs-ext
+    else
+        ln -s ../$MKSDIMAGE_ROOTFS rootfs.ext
+    fi
+ 
+    if [ ! -s rootfs.ext ]; then
+        cechoe "Failed to generate rootfs.ext! Aborting..."
+        cd ..
+        rm -rf _sdimage_
+        return
+    else
+        cecho "Both of the boot.fat and rootfs.ext are ready, proceeding..." 
+    fi
+
+    # Now if everything's fine, we have both of the boot.fat and rootfs.ext
+    # Proceed with merging all into the target sdimage
+
+    # Prepare the target SDIMAGE disk image file
+    # ------------------------------------------------
+    # Initialize a sparse file
+    dd if=/dev/zero of=$SDIMAGE_NAME bs=1 count=0 seek=$(expr 1024 \* ${sdcard_size})
+
+    # Create partition table
+    local boot_start=${uboot_size}
+    local rootfs_start=$(expr ${uboot_size} + ${boot_size} + ${space_size})
+    parted -s $SDIMAGE_NAME mklabel msdos
+    parted -s $SDIMAGE_NAME unit KiB mkpart primary fat32 ${boot_start} $(expr ${boot_start} \+ ${boot_size})
+    parted -s $SDIMAGE_NAME unit KiB mkpart primary ${rootfs_start} $(expr ${rootfs_start} \+ ${rootfs_size})
+    parted $SDIMAGE_NAME print
+
+    # Burn Partition
+    dd if=../$MKSDIMAGE_UBOOT of=$SDIMAGE_NAME conv=notrunc seek=1 bs=1024
+    dd if=boot.fat of=$SDIMAGE_NAME conv=notrunc seek=${boot_start} bs=1024 && sync && sync
+    dd if=rootfs.ext of=$SDIMAGE_NAME conv=notrunc seek=${rootfs_start} bs=1024 && sync && sync
+
+    # Move the final image to upper folder
+    mv $SDIMAGE_NAME ../
+
+    # Back to upper folder
+    cd ..
+    rm -rf _sdimage_
+}
+export -f mksdimage_yocto
+
+
+function mksdimage()
+{
+    local cur_dir=$(pwd)
+    local image_type=$1
+
+    # CD to output dir
+    #cd $OUTPUT_DIR
+
+    if [ "${image_type}" = "" ]; then
+        image_type=$CFG_SDIMAGE_DEFAULT
+    fi
+
+    cechoi "Start making SDIMAGE with type: '${image_type}' under folder: '${cur_dir}'"
+    if [ "${image_type}" = "yocto" ]; then
+        mksdimage_yocto $2 $3 $4 $5 $6
+    elif [ "${image_type}" = "android" ]; then
+        mksdimage_android $2 $3 $4 $5 $6
+    else
+        cechow "Unknown image type: ${image_type} !"
+    fi
+
+    # CD back to original dir
+    cecho "Done making SDIMAGE!"
+    #cd ${cur_dir}
+}
+export -f mksdimage
+
+declare sel_sdk=""
+function select_sdk()
+{
+    local tgt_sdk=""
+    local ctr=0
+    declare -a ar_sdks # This is an array for storing the SDK names
+  
+    sdk_list=$(echo $SUPPORTED_SDK)
+    for sdk in $sdk_list; do
+        if [ ! $tgt_sdk = "" ]; then
+            ctr=1
+        else
+            tgt_sdk=$sdk
+        fi
+    done
+
+    if [ $ctr -ne 0 ]; then
+        ctr=0
+        cechoa "Multiple SDK found! Please select which SDK to use:"
+        for sdk in $sdk_list; do
+            #ctr=`expr $ctr + 1`
+            let "ctr += 1"
+
+            # Store the name into the array, starting from 1
+            ar_sdks[$ctr]=$sdk
+            cechoa "\t$ctr: ${ar_sdks[$ctr]}"
+
+            # Only allow 9 SDKs
+            if [ $ctr -gt 9 ]; then
+                cechoe "Too many SDK! Exiting!"
+                return 1
+            fi
+        done
+
+        while [ true ]; do
+            read -n 1 -p "Input the SDK number (1~$ctr):" sdk_num
+            cecho ""
+            if [ $sdk_num -lt `expr $ctr + 1` ] && [ $sdk_num -gt 0 ]; then
+                break
+            else
+                cecho "Invalid input!"
+            fi
+        done
+        sel_sdk=${ar_sdks[$sdk_num]}
+    else
+        sel_sdk=$tgt_sdk
+    fi
+
+    if [ "$sel_sdk" == "" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+export -f select_sdk
+
+function is_sdk_supported()
+{
+    local tgt_sdk=$1 
+   
+    sdk_list=$(echo $SUPPORTED_SDK)
+    for sdk in $sdk_list; do
+        if [ $sdk = $tgt_sdk ]; then
+            return 0
+        fi
+    done
+    # Not found!
+    return 1
+}
+export -f is_sdk_supported
+
+declare sel_dev=""
+function select_device()
+{
+    local tgt_dev=""
+    local ctr=0
+    declare -a ar_devs # This is an array for storing the device names
+  
+    dev_list=$(echo $SUPPORTED_DEVICE)
+    for dev in $dev_list; do
+        if [ ! $tgt_dev = "" ]; then
+            ctr=1
+        else
+            tgt_dev=$dev
+        fi
+    done
+
+    if [ $ctr -ne 0 ]; then
+        ctr=0
+        cechoa "Multiple device found! Please select which one to use:"
+        for dev in $dev_list; do
+            #ctr=`expr $ctr + 1`
+            let "ctr += 1"
+
+            # Store the name into the array, starting from 1
+            ar_devs[$ctr]=$dev
+            cecho "\t$ctr: ${ar_devs[$ctr]}"
+
+            # Only allow 100 devices
+            if [ $ctr -gt 100 ]; then
+                cechoe "Too many devices! Exiting!"
+                return 1
+            fi
+        done
+
+        while [ true ]; do
+            read -p "Choose a device (1~$ctr, press ENTER for default: '$DEFAULT_DEVICE'):" dev_num
+            #cecho ""
+            if [ "$dev_num" = "" ]; then
+                # Trying to use default device
+                is_device_supported $DEFAULT_DEVICE
+                if [ $? -ne 0 ]; then
+                    cechoe "Default device '$DEFAULT_DEVICE' is NOT supported!"
+                    cechoe "Please fix this in 'build.cfg'!"
+                    cecho "Invalid input!"
+                    continue
+                else
+                    cechoi "Using default device: $DEFAULT_DEVICE"
+                    sel_dev=$DEFAULT_DEVICE
+                    return 0
+                fi
+            fi
+
+            if [ $dev_num -lt `expr $ctr + 1` ] && [ $dev_num -gt 0 ]; then
+                break
+            else
+                cecho "Invalid input!"
+            fi
+        done
+        sel_dev=${ar_devs[$dev_num]}
+    else
+        sel_dev=$tgt_dev
+    fi
+
+    if [ "$sel_dev" == "" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+export -f select_device
+
+function is_device_supported()
+{
+    local tgt_dev=$1 
+   
+    dev_list=$(echo $SUPPORTED_DEVICE)
+    for dev in $dev_list; do
+        if [ $dev = $tgt_dev ]; then
+            return 0
+        fi
+    done
+    # Not found!
+    return 1
+}
+export -f is_device_supported
+
+#########################################################################
+# Final setup
+#########################################################################
+
+# device setup
+# -----------------------------------------------------------------------
+if [ "$ACTIVE_DEVICE" = "" ]; then
+    cecho "No device specified! Try to select a device from the list..."
+    select_device
+    if [ $? -eq 0 ]; then
+        #cecho "Selected device: $sel_dev"
+        export ACTIVE_DEVICE=$sel_dev
+    else
+        cechoe "No device found!!!"
+        cechoe "Please fix this before doing anything!"
+        return
+    fi
+else
+    # Check if the device is in the support list
+    is_device_supported $ACTIVE_DEVICE
+    if [ $? -ne 0 ]; then
+        cechoe "Device '$ACTIVE_DEVICE' is NOT supported!"
+        cecho "Supported devices (in build.cfg):"
+        cecho "\t$SUPPORTED_DEVICE"
+        cechoe "Please fix this before doing anything!"
+        return
+    else
+        # Device is supported! Pass through!
+        true
+    fi
+fi
+cechoi "Using device: '$ACTIVE_DEVICE'"
+
+
+# Build related configurations
+# -----------------------------------------------------------------------
+export UBOOT_CFG=$(printenv "$ACTIVE_DEVICE"_UBOOT_CFG)
+export KERNEL_CFG=$(printenv "$ACTIVE_DEVICE"_KERNEL_CFG)
+export ROOTFS_CFG=$(printenv "$ACTIVE_DEVICE"_ROOTFS_CFG)
+export ACTIVE_SDK=$(printenv "$ACTIVE_DEVICE"_SDK_CFG)
+export KERNEL_DTB=$(printenv "$ACTIVE_DEVICE"_KERNEL_DTB)
+
+export ROOTFS_BASE=$(printenv "$ROOTFS_CFG"_ROOTFS_BASE)
+export ROOTFS_ADDON=$(printenv "$ROOTFS_CFG"_ROOTFS_ADDON)
+
+# Double checking...
+if [ "$UBOOT_CFG" = "" -a "$KERNEL_CFG" = "" ]; then
+    cechoe "No configuration found for '$ACTIVE_DEVICE'!"
+    cechoe "Please check the 'build.cfg' file!"
+    return
+fi
+
+# Setup the output folder
+export OUTPUT_DIR=$OUTPUT_ROOT/$ACTIVE_DEVICE
+export TARGET_ROOTFS=$OUTPUT_DIR/rootfs
+
+
+# Toolchain related setup
+# Calling into environment setup script in sdk
+# -----------------------------------------------------------------------
+source $ROOT_DIR/sdk/$ACTIVE_SDK/environment-setup.sh
+if [ $? -ne 0 ]; then
+    cechoe "Environment setup failed! Please fix issues and retry!"
+    return
+fi
+
+# Location for kernel headers and libraries:
+export MAKEDEP_KERNEL=$ROOT_DIR/$KERNEL_DIR
+export MAKEDEP_ROOT=$SDK_SYSROOT
+export MAKEDEP_INC_KERNEL=$MAKEDEP_ROOT/usr/src/kernel/include
+export MAKEDEP_INC_KERNEL_ARM=$MAKEDEP_ROOT/usr/src/kernel/arch/arm/include
+export MAKEDEP_INC=$MAKEDEP_ROOT/usr/include
+export MAKEDEP_LIB=$MAKEDEP_ROOT/usr/lib
+
+# Anchor for environment check
+export ENV_READY=1
+
+#########################################################################
+# Print the key configurations
+#########################################################################
+cechoi "Environment configuration:"
+cechoi "\tROOT_DIR=$ROOT_DIR"
+cechoi "\tARCH=$ARCH"
+cechoi "\tCROSS_COMPILE=$CROSS_COMPILE"
+cechoi "\tOUTPUT_DIR=$OUTPUT_DIR"
+cechoi ""
+
