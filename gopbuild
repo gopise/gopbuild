@@ -68,7 +68,7 @@ fi
 
 # Parameter check: ACTION
 # -------------------------------
-if [ "$ACTION" = "config" -o "$ACTIVE" = "clean" -o "$ACTION" = "" ]; then
+if [ "$ACTION" = "config" -o "$ACTION" = "clean" -o "$ACTION" = "" ]; then
     true
 else
     cechow "Unknown action: $ACTION !!!"

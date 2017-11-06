@@ -225,7 +225,7 @@ export -f mksdimage_android
 # ---------------------------------------
 export MKSDIMAGE_UBOOT=u-boot.imx
 export MKSDIMAGE_KERNEL=zImage
-export MKSDIMAGE_ROOTFS=$ROOTFS_TARGET
+export MKSDIMAGE_ROOTFS=rootfs.ext
 
 # boot partition (FAT partition holding kernel and dtb) size, in MB:
 export MKSDIMAGE_BOOT_SIZE_MB=50
