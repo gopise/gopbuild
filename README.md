@@ -9,6 +9,7 @@ It will use SDK from Yocto or any other source to build the uboot/kernel and app
 
 
 Quick start guide:
+-----------------------------------------------------------------------------------------
     --  Setup the environment:
             cd <root-of-gopbuild>
             source envsetup
