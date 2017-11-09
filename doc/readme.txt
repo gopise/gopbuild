@@ -18,6 +18,10 @@
     
 
 2.  Change log:
+    v2.0:
+        Add multi-SDK support.
+        Add multi-board support.
+        Abstract the board configuration into a build.cfg.
     v1.2:
         First drop for adding capability of containing SDK from Yocto.
 
@@ -31,10 +35,10 @@
         It should be called through "source" or "." in a shell.
    
     --  gopbuild
-        Major entry for build script. Device/SoC related configurations
-        are contained here. It can be called directly without envsetup.
-        Note: for how to add new board support, please refer to the section
-        below: "How to add new board configuration".
+        Major entry for build script.
+
+    --  build.cfg
+        All SoC/Board level configurations. Add new SoC/Board support here
 
     --  gopcook.sh (in each module)
         Each build-able module should contain this script. It act as a
@@ -56,6 +60,7 @@
             be placed into target rootfs (customer original one).
 
     --  sdk folder
+        Contains SDKs. Could have multiple sub-folders.
         This folder is supposed to hold two sub-components: toolchain 
         and target rootfs.
         Details for how to port a SDK into this environment can be found
@@ -69,6 +74,7 @@
     --  output folder
         All final output for building and log for building will be placed 
         into this folder.
+        A log file for each build can be found from the "log" sub-folder.
 
 
 4. How to use
@@ -81,22 +87,12 @@
     --  Build everything for default board:
             gmk
         
-    --  Build everything for specific board:
-            gmk <board-name>
-        The <board-name> here is the name for configuration name for the
-        board. Note: it's not the name for kernel defconf name nor uboot
-        config name. The name defined in major script instead.
-    
     --  Build specific module for default board.
         Any one of listed below:
             gmk uboot
             gmk kernel
             gmk rootfs
             gmk all # Build all, same as a direct "gmk"
-
-    --  Build specific module for specific board:
-        Example:
-            gmk kernel <board-name>
 
     --  Clean everything:
             gmk all clean
@@ -107,7 +103,7 @@
         Example:
             gmk uboot clean
 
-    --  Short cut build for seperate moduels:
+    --  Shortcut build for seperate moduels:
         If a full build for target board has ever been done and the target
         has been properly configured for target board, you can use shortcut
         build:
@@ -117,17 +113,8 @@
 
 
 5. How to add new board configuration:
-    Board configuration is hold in the major script: "gopbuild".
-    Please follow the following template when adding new board:
-    Example:
-        # --------[ sabresd ]--------
-        elif [ "$DEVICE" = "sabresd" ]; then
-            BUILD_UBOOT=mx6qsabresd_config
-            BUILD_KERNEL=imx_v7_defconfig
-            BUILD_ROOTFS=""
-            KERNEL_DTB_LIST="\
-                imx6q-sabresd.dtb \
-                imx6q-sabresd-ldo.dtb \
+    Board configuration is hold in the "build.cfg".
+    New board support can be added following the format of existing ones.
 
 
 6. Known issues:
