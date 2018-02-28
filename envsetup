@@ -278,7 +278,7 @@ function mksdimage_yocto()
     local rootfs_size=$(expr $MKSDIMAGE_ROOTFS_SIZE_MB \* 1024)
     local boot_size=$(expr $MKSDIMAGE_BOOT_SIZE_MB \* 1024)
 
-    local uboot_size=$(expr 4 \* 1024)
+    local uboot_size=$(expr 10 \* 1024)
     local space_size=$(expr 4 \* 1024)
 
     local sdcard_size=$(expr ${uboot_size} + ${boot_size} + ${space_size} + ${rootfs_size} + ${space_size})
@@ -388,7 +388,7 @@ function mksdimage()
         image_type=$CFG_SDIMAGE_DEFAULT
     fi
 
-    cechoi "Start making SDIMAGE with type: '${image_type}' under folder: '${cur_dir}'"
+    #cechoi "Start making SDIMAGE with type: '${image_type}' under folder: '${cur_dir}'"
     if [ "${image_type}" = "yocto" ]; then
         mksdimage_yocto $2 $3 $4 $5 $6
     elif [ "${image_type}" = "android" ]; then
