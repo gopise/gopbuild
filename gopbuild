@@ -259,8 +259,12 @@ function process_rootfs()
         process_kernel_install $act
         process_user_all $act
 
-        cechoi "Make a tgz of the final rootfs"
+        if [ "$MAKE_ROOTFS_TARBALL" = "1" ]; then
+            cechoi "Making a tarball for the final rootfs..."
         sudo tar -C $OUTPUT_DIR/rootfs -cjf $OUTPUT_DIR/$ROOTFS_TARGET ./
+        else
+            cechoi "Skip making TARBALL for rootfs"
+        fi
     fi
 
     return
@@ -295,7 +299,13 @@ function process_all()
     process_uboot $act
     process_kernel $act
     process_rootfs $act
-    #process_sdimage $act
+
+    if [ "$MAKE_ROOTFS_SDIMAGE" = "1" ]; then
+        cechoi "Making a SDIMAGE for the while image..."
+        process_sdimage $act
+    else
+        cechi "Skip making SDIMAGE"
+    fi
 
     # Reserved for future...
     if [ "$act" = "config" ]; then

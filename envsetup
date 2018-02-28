@@ -23,6 +23,9 @@ export OUTPUT_ROOT=$ROOT_DIR/output
 
 export MAKE_THREADS="-j 4"
 
+export MAKE_ROOTFS_TARBALL=0
+export MAKE_ROOTFS_SDIMAGE=1
+
 export MODULE_SCRIPT_NAME=gopcook.sh
 export MAIN_SCRIPT_NAME=gopbuild
 
