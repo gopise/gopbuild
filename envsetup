@@ -596,6 +596,9 @@ cechoi "Using device: '$ACTIVE_DEVICE'"
 
 # Build related configurations
 # -----------------------------------------------------------------------
+export ACTIVE_SOC=$(echo "$ACTIVE_DEVICE" | cut -d'_' -f1)
+export ACTIVE_BOARD=$(echo "$ACTIVE_DEVICE" | cut -d'_' -f2)
+
 export UBOOT_CFG=$(printenv "$ACTIVE_DEVICE"_UBOOT_CFG)
 export KERNEL_CFG=$(printenv "$ACTIVE_DEVICE"_KERNEL_CFG)
 export ROOTFS_CFG=$(printenv "$ACTIVE_DEVICE"_ROOTFS_CFG)
@@ -641,6 +644,7 @@ export ENV_READY=1
 # Print the key configurations
 #########################################################################
 cechoi "Environment configuration:"
+cechoi "\tACTIVE_DEVICE=$ACTIVE_DEVICE ($ACTIVE_SOC", "$ACTIVE_BOARD)"
 cechoi "\tROOT_DIR=$ROOT_DIR"
 cechoi "\tARCH=$ARCH"
 cechoi "\tCROSS_COMPILE=$CROSS_COMPILE"
