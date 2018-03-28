@@ -282,6 +282,7 @@ function process_sdimage()
         true
     else
         cd $OUTPUT_DIR
+        cechoi "Making a SDIMAGE for the while image..."
         # Calling into mksdimage script to make the image
         mksdimage yocto
     fi
@@ -301,7 +302,6 @@ function process_all()
     process_rootfs $act
 
     if [ "$MAKE_ROOTFS_SDIMAGE" = "1" ]; then
-        cechoi "Making a SDIMAGE for the while image..."
         process_sdimage $act
     else
         cechi "Skip making SDIMAGE"
