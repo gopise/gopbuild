@@ -75,6 +75,7 @@ GPATH
 GRTAGS
 GSYMS
 GTAGS
+GFILE
 
 *.orig
 *~
