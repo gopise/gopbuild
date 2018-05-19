@@ -304,7 +304,7 @@ function process_all()
     if [ "$MAKE_ROOTFS_SDIMAGE" = "1" ]; then
         process_sdimage $act
     else
-        cechi "Skip making SDIMAGE"
+        cechoi "Skip making SDIMAGE"
     fi
 
     # Reserved for future...
