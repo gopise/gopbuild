@@ -25,6 +25,8 @@ Quick start guide:
     --  Build specific module for the choosen board. Examples:
             gmk uboot
             gmk kernel
+            gmk platform
+            gmk rootfs
 
     --  Print help message:
             gmk help

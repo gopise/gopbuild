@@ -11,6 +11,53 @@ ALL_PARAM_P4=$4
 PACKAGE_ROOT=$(pwd)
 PACKAGE_NAME="uboot"
 
+function build_a32_bootloader()
+{
+    local defconf=$1
+
+    cecho "Building $PACKAGE_NAME (${FUNCNAME[0]}) ..."
+    if [ "${defconf}" = "" ]; then
+        cecho "WARN: No config file specified! Existing .config will be used!!! "
+        cecho "      Make sure you've ever make the config before!"
+    else
+        make ${defconf}
+    fi
+
+    # Call into make
+    make $MAKE_THREADS CROSS_COMPILE=$CROSS_COMPILE CC="$CC $SYSROOT"
+    $CLASS_COMMON_EXIT_ONFAILURE
+
+    # Do install here, may move to "install" section later.
+    cp u-boot-dtb.imx $OUTPUT_DIR/u-boot.imx
+}
+
+function build_a64_bootloader() 
+{
+    local defconf=$1
+
+    cecho "Building $PACKAGE_NAME (${FUNCNAME[0]}) ..."
+    if [ "${defconf}" = "" ]; then
+        cecho "WARN: No config file specified! Existing .config will be used!!! "
+        cecho "      Make sure you've ever make the config before!"
+    else
+        make ${defconf}
+    fi
+
+    # This is to fix the DTC issue.
+    # DTC only exists in the toolchain, not on host.
+    export PATH=$ROOT_DIR/sdk/toolchain/usr/bin:$PATH
+
+    # Call into make
+    make $MAKE_THREADS CROSS_COMPILE=$CROSS_COMPILE CC="$CC $SYSROOT"
+    $CLASS_COMMON_EXIT_ONFAILURE
+
+    # Do install here, may move to "install" section later.
+    cp u-boot.bin $OUTPUT_DIR/
+    cp u-boot-nodtb.bin $OUTPUT_DIR/
+    cp spl/u-boot-spl.bin $OUTPUT_DIR/
+    cp tools/mkimage $OUTPUT_DIR/mkimage_uboot
+}
+
 function do_prepare() 
 {
     # Prepare for the building
@@ -25,22 +72,11 @@ function do_prepare()
 
 function do_build() 
 {
-    local defconf=$1
-
-    cecho "Building $PACKAGE_NAME ..."
-    if [ "${defconf}" = "" ]; then
-        cecho "WARN: No config file specified! Existing .config will be used!!! "
-        cecho "      Make sure you've ever make the config before!"
+    if [ "$ACTIVE_SDK" = "a64" ]; then
+        build_a64_bootloader "$1" "$2" "$3" "$4" "$5"
     else
-        make ${defconf}
+        build_a32_bootloader "$1" "$2" "$3" "$4" "$5"
     fi
-
-    # Call into make
-    make $MAKE_THREADS CROSS_COMPILE=$CROSS_COMPILE CC="$CC $SYSROOT"
-    $CLASS_COMMON_EXIT_ONFAILURE
-
-    # Do install here, may move to "install" section later.
-    cp u-boot.imx $OUTPUT_DIR
 }
 
 function do_install() 

@@ -103,6 +103,8 @@ def change_interpreter(elf_file_name):
                fname.startswith(b("/lib32/")) or fname.startswith(b("/usr/lib32/")) or \
                fname.startswith(b("/usr/lib32/")) or fname.startswith(b("/usr/lib64/")):
                 break
+            if p_filesz == 0:
+                break
             if (len(new_dl_path) >= p_filesz):
                 print("ERROR: could not relocate %s, interp size = %i and %i is needed." \
                     % (elf_file_name, p_memsz, len(new_dl_path) + 1))
@@ -112,7 +114,7 @@ def change_interpreter(elf_file_name):
             f.write(dl_path)
             break
 
-def change_dl_sysdirs():
+def change_dl_sysdirs(elf_file_name):
     if arch == 32:
         sh_fmt = "<IIIIIIIIII"
     else:
@@ -156,6 +158,11 @@ def change_dl_sysdirs():
             elif name == b(".ldsocache"):
                 ldsocache_path = f.read(sh_size)
                 new_ldsocache_path = old_prefix.sub(new_prefix, ldsocache_path)
+                new_ldsocache_path = new_ldsocache_path.rstrip(b("\0"))
+                if (len(new_ldsocache_path) >= sh_size):
+                    print("ERROR: could not relocate %s, .ldsocache section size = %i and %i is needed." \
+                    % (elf_file_name, sh_size, len(new_ldsocache_path)))
+                    sys.exit(-1)
                 # pad with zeros
                 new_ldsocache_path += b("\0") * (sh_size - len(new_ldsocache_path))
                 # write it back
@@ -166,6 +173,11 @@ def change_dl_sysdirs():
                 while (offset + 4096) <= sh_size:
                     path = f.read(4096)
                     new_path = old_prefix.sub(new_prefix, path)
+                    new_path = new_path.rstrip(b("\0"))
+                    if (len(new_path) >= 4096):
+                        print("ERROR: could not relocate %s, max path size = 4096 and %i is needed." \
+                        % (elf_file_name, len(new_path)))
+                        sys.exit(-1)
                     # pad with zeros
                     new_path += b("\0") * (4096 - len(new_path))
                     #print "Changing %s to %s at %s" % (str(path), str(new_path), str(offset))
@@ -243,7 +255,7 @@ for e in executables_list:
         if arch:
             parse_elf_header()
             change_interpreter(e)
-            change_dl_sysdirs()
+            change_dl_sysdirs(e)
 
     """ change permissions back """
     if perms:

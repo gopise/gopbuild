@@ -16,8 +16,8 @@ function show_help()
     echo "Step 2: Under the environment, run gmk to do building:"
     echo -e "\e[92m  gmk [TARGET] [ACTION]\e[0m"
     echo "  [TARGET]: "
-    echo "      Target module to be compiled"
-    echo "      Available options: all/uboot/kernel/rootfs/sdimage/reset"
+    echo "      Target module to be built"
+    echo "      Available options: all/uboot/kernel/platform/rootfs/sdimage/reset"
     echo "      Default: all"
     echo "  [ACTION]:"
     echo "      Actions to be done on current target"
@@ -38,7 +38,7 @@ function show_help()
     echo "  6. Clean everything for all devices:"
     echo "       gmk reset"
     echo "  "
-    echo "Log will be store under 'output/log/ for build action. No log will be stored for clean/config action." 
+    echo "Log will be store under 'output/DEVICE/log/ for build action. No log will be stored for clean/config action." 
     echo "By Gopise 2014/11/12"
     return
 }
@@ -82,13 +82,13 @@ function show_config()
 {
     # Note: using 'echo' instead of env directly is to remove dummy space.
     cechoa "Current configurations:"
-    cechoa "----------------------------------------------------"
-    cechoa "Device \t= \t'$ACTIVE_DEVICE'"
-    cechoa "uboot \t= \t'$UBOOT_CFG'"
-    cechoa "kernel \t= \t'$KERNEL_CFG'"
-    cechoa "rootfs \t= \t'$ROOTFS_BASE' + '$(echo $ROOTFS_ADDON)'"
-    cechoa "dtb \t= \t'$(echo $KERNEL_DTB)'"
-    cechoa "----------------------------------------------------"
+    cechoa "--------------------------------------------------------------------------------------------------"
+    cechoa "Device \t= '$ACTIVE_DEVICE'"
+    cechoa "uboot \t= '$UBOOT_CFG'"
+    cechoa "kernel \t= '$KERNEL_CFG'"
+    cechoa "rootfs \t= '$ROOTFS_BASE' + '$(echo $ROOTFS_ADDON)'"
+    cechoa "dtb \t= '$(echo $KERNEL_DTB | awk '{for(i=1;i<=NF;i++){if(i==1) print $1;else print "\t  ",$i}}')'"
+    cechoa "--------------------------------------------------------------------------------------------------"
     return
 }
 
@@ -170,6 +170,37 @@ function process_kernel()
     fi
 
     cd $ROOT_DIR
+    return
+}
+
+function process_platform()
+{
+    local act=$1
+    local task=""
+
+    if [ "$act" = "config" ]; then
+        cechoi "Configure platform software ..."
+        task="-p"
+    elif [ "$act" = "clean" ]; then
+        cechoi "Clean platform software ..."
+        task="-c"
+    else
+        cechoi "Build platform software ..."
+        task=""
+    fi
+
+    #cd $ROOT_DIR/$PLATFORM_DIR
+    cechoi "Processing all platform software packages..."
+    package_list=$(echo $PLATFORM_SW)
+    for package in $package_list; do
+        cechoi "Processing $package"
+        # Call into the building script of each package
+        cd $ROOT_DIR/$PLATFORM_DIR/$package
+        ./$MODULE_SCRIPT_NAME ${task}
+        $CLASS_COMMON_EXIT_ONFAILURE
+    done
+    cd $ROOT_DIR
+
     return
 }
 
@@ -282,7 +313,7 @@ function process_sdimage()
         true
     else
         cd $OUTPUT_DIR
-        cechoi "Making a SDIMAGE for the while image..."
+        cechoi "Making a SDIMAGE ..."
         # Calling into mksdimage script to make the image
         mksdimage yocto
     fi
@@ -299,6 +330,7 @@ function process_all()
     # Call for all
     process_uboot $act
     process_kernel $act
+    process_platform $act
     process_rootfs $act
 
     if [ "$MAKE_ROOTFS_SDIMAGE" = "1" ]; then
@@ -350,6 +382,8 @@ function main()
         process_uboot $act
     elif [ "$TARGET" = "kernel" ];then
         process_kernel $act
+    elif [ "$TARGET" = "platform" ];then
+        process_platform $act
     elif [ "$TARGET" = "rootfs" ];then
         process_rootfs $act
     elif [ "$TARGET" = "sdimage" ];then

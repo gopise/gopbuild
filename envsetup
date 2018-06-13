@@ -6,7 +6,7 @@
 ACTIVE_DEVICE=$1
 
 #########################################################################
-# Environment configurations
+# Baisc environment configurations
 #########################################################################
 
 # Folder/file name configurations
@@ -16,6 +16,7 @@ export ROOT_DIR=$(cd $(dirname $BASH_SOURCE) && pwd)
 # Names for folders in the root:
 export UBOOT_DIR=uboot
 export KERNEL_DIR=kernel
+export PLATFORM_DIR=platform
 export ROOTFS_DIR=rootfs
 export ROOTFS_TARGET=rootfs.tar.bz2
 export SDIMAGE_NAME=fsl-image.sdcard
@@ -41,14 +42,12 @@ source build.cfg
 # device configurations
 export SUPPORTED_DEVICE=$(env | grep _UBOOT_CFG | sed "s/_UBOOT_CFG.*//")
 export SUPPORTED_SDK=$(find $ROOT_DIR/sdk/* -maxdepth 0 -type d -a -not -iname "." -printf "%f ")
-export DEFAULT_SDK=a9
 
 
 #########################################################################
-# Common functions and properties
+# Color print functions
 #########################################################################
 
-# Color echo
 # -----------------------------------------------------------------------
 # Common properties:
 #export CLASS_COMMON_HEADER="#!/bin/bash"
@@ -141,8 +140,9 @@ export -f cechoe
 export -f cecho
 
 
+#########################################################################
 # Common tool functions
-# -----------------------------------------------------------------------
+#########################################################################
 
 function common_exit_onfailure() {
     if [ $? -ne 0 ]; then
@@ -204,6 +204,12 @@ export CLASS_COMMON_MAIN="common_main"
 function gmk()
 {
     local cur_dir=$(pwd)
+
+    # Create the output dir if not exists.
+    if [ ! -e $OUTPUT_DIR ]; then
+        mkdir -p $OUTPUT_DIR
+    fi
+    
     if [ "${cur_dir}" = "$ROOT_DIR" ]; then
         ./$MAIN_SCRIPT_NAME $1 $2 $3 $4 $5
     else
@@ -213,8 +219,9 @@ function gmk()
 export -f gmk
 
 
-# mksdimage functions
-# -----------------------------------------------------------------------
+#########################################################################
+# SDIMAGE tool functions 
+#########################################################################
 
 function mksdimage_android()
 {
@@ -223,28 +230,16 @@ function mksdimage_android()
 }
 export -f mksdimage_android
 
-
-# Configurations
-# ---------------------------------------
-export MKSDIMAGE_UBOOT=u-boot.imx
-export MKSDIMAGE_KERNEL=zImage
-export MKSDIMAGE_ROOTFS=rootfs.ext
-
-# boot partition (FAT partition holding kernel and dtb) size, in MB:
-export MKSDIMAGE_BOOT_SIZE_MB=50
-# rootfs partition size, in MB:
-export MKSDIMAGE_ROOTFS_SIZE_MB=1024
-
 function mksdimage_checkimage()
 {
-    if [ ! -s $MKSDIMAGE_UBOOT ]; then
-        cechoe "'$MKSDIMAGE_UBOOT' is not found in current folder!"
+    if [ ! -s $SDIMAGE_BOOTLOADER ]; then
+        cechoe "'$SDIMAGE_BOOTLOADER' is not found in current folder!"
         return 1
-    elif [ ! -s $MKSDIMAGE_KERNEL ]; then
-        cechoe "'$MKSDIMAGE_KERNEL' is not found in current folder!"
+    elif [ ! -s $SDIMAGE_KERNEL ]; then
+        cechoe "'$SDIMAGE_KERNEL' is not found in current folder!"
         return 1
-    elif [ ! -s $MKSDIMAGE_ROOTFS -a ! -e rootfs ]; then
-        cechoe "'$MKSDIMAGE_ROOTFS' or a 'rootfs/' folder is not found in current folder!"
+    elif [ ! -s $SDIMAGE_ROOTFS -a ! -e rootfs ]; then
+        cechoe "'$SDIMAGE_ROOTFS' or a 'rootfs/' folder is not found in current folder!"
         return 1
     #elif [ ! -s "*.dtb" ]; then
     #        return 1
@@ -263,9 +258,9 @@ function mksdimage_yocto()
     if [ $? -ne 0 ]; then
         cechoe "Some files are missing!"
         cechow "Please make sure the following items are ready under $(pwd) before calling me:"
-        cechow "\t1. '$MKSDIMAGE_UBOOT'"
-        cechow "\t2. '$MKSDIMAGE_KERNEL' and corresponding '*.dtb' files."
-        cechow "\t3. '$MKSDIMAGE_ROOTFS' disk image file OR a 'rootfs' folder contains all rootfs files"
+        cechow "\t1. '$SDIMAGE_BOOTLOADER'"
+        cechow "\t2. '$SDIMAGE_KERNEL' and corresponding '*.dtb' files."
+        cechow "\t3. '$SDIMAGE_ROOTFS' disk image file OR a 'rootfs' folder contains all rootfs files"
         cechoe "Aborting!"
         return
     fi
@@ -275,13 +270,13 @@ function mksdimage_yocto()
     cd _sdimage_
 
     # Configures:
-    local rootfs_size=$(expr $MKSDIMAGE_ROOTFS_SIZE_MB \* 1024)
-    local boot_size=$(expr $MKSDIMAGE_BOOT_SIZE_MB \* 1024)
+    local rootfs_size=$(expr $SDIMAGE_ROOTFS_SIZE \* 1024)
+    local boot_size=$(expr $SDIMAGE_BOOT_SIZE \* 1024)
 
-    local uboot_size=$(expr 10 \* 1024)
+    local bootloader_size=$(expr 10 \* 1024)
     local space_size=$(expr 4 \* 1024)
 
-    local sdcard_size=$(expr ${uboot_size} + ${boot_size} + ${space_size} + ${rootfs_size} + ${space_size})
+    local sdcard_size=$(expr ${bootloader_size} + ${boot_size} + ${space_size} + ${rootfs_size} + ${space_size})
 
     #exit
 
@@ -298,7 +293,7 @@ function mksdimage_yocto()
     mount -o loop boot.fat boot-fat
 
     # Copy files into boot partition
-    cp ../$MKSDIMAGE_KERNEL boot-fat
+    cp ../$SDIMAGE_KERNEL boot-fat
     cp ../*.dtb boot-fat
     sync
 
@@ -315,7 +310,7 @@ function mksdimage_yocto()
 
     # Prepare the rootfs partition image file
     # ------------------------------------------------
-    if [ ! -s ../$MKSDIMAGE_ROOTFS ]; then
+    if [ ! -s ../$SDIMAGE_ROOTFS ]; then
         # Create a sparse image
         dd if=/dev/zero of=rootfs.ext bs=1 count=0 seek=$(expr 1024 \* ${rootfs_size})
 
@@ -333,7 +328,7 @@ function mksdimage_yocto()
         # Umount the loop disk
         umount rootfs-ext
     else
-        ln -s ../$MKSDIMAGE_ROOTFS rootfs.ext
+        ln -s ../$SDIMAGE_ROOTFS rootfs.ext
     fi
  
     if [ ! -s rootfs.ext ]; then
@@ -354,15 +349,15 @@ function mksdimage_yocto()
     dd if=/dev/zero of=$SDIMAGE_NAME bs=1 count=0 seek=$(expr 1024 \* ${sdcard_size})
 
     # Create partition table
-    local boot_start=${uboot_size}
-    local rootfs_start=$(expr ${uboot_size} + ${boot_size} + ${space_size})
+    local boot_start=${bootloader_size}
+    local rootfs_start=$(expr ${bootloader_size} + ${boot_size} + ${space_size})
     parted -s $SDIMAGE_NAME mklabel msdos
     parted -s $SDIMAGE_NAME unit KiB mkpart primary fat32 ${boot_start} $(expr ${boot_start} \+ ${boot_size})
     parted -s $SDIMAGE_NAME unit KiB mkpart primary ${rootfs_start} $(expr ${rootfs_start} \+ ${rootfs_size})
     parted $SDIMAGE_NAME print
 
     # Burn Partition
-    dd if=../$MKSDIMAGE_UBOOT of=$SDIMAGE_NAME conv=notrunc seek=1 bs=1024
+    dd if=../$SDIMAGE_BOOTLOADER of=$SDIMAGE_NAME conv=notrunc bs=1K $SDIMAGE_BOOTLOADER_OFFSET
     dd if=boot.fat of=$SDIMAGE_NAME conv=notrunc seek=${boot_start} bs=1024 && sync && sync
     dd if=rootfs.ext of=$SDIMAGE_NAME conv=notrunc seek=${rootfs_start} bs=1024 && sync && sync
 
@@ -402,6 +397,11 @@ function mksdimage()
     #cd ${cur_dir}
 }
 export -f mksdimage
+
+
+#########################################################################
+# Device setup tool functions
+#########################################################################
 
 declare sel_sdk=""
 function select_sdk()
@@ -560,12 +560,11 @@ function is_device_supported()
 }
 export -f is_device_supported
 
+
 #########################################################################
-# Final setup
+# Device setup
 #########################################################################
 
-# device setup
-# -----------------------------------------------------------------------
 if [ "$ACTIVE_DEVICE" = "" ]; then
     cecho "No device specified! Try to select a device from the list..."
     select_device
@@ -594,19 +593,34 @@ fi
 cechoi "Using device: '$ACTIVE_DEVICE'"
 
 
-# Build related configurations
-# -----------------------------------------------------------------------
+#########################################################################
+# Final environment setup
+#########################################################################
+
 export ACTIVE_SOC=$(echo "$ACTIVE_DEVICE" | cut -d'_' -f1)
 export ACTIVE_BOARD=$(echo "$ACTIVE_DEVICE" | cut -d'_' -f2)
 
 export UBOOT_CFG=$(printenv "$ACTIVE_DEVICE"_UBOOT_CFG)
 export KERNEL_CFG=$(printenv "$ACTIVE_DEVICE"_KERNEL_CFG)
 export ROOTFS_CFG=$(printenv "$ACTIVE_DEVICE"_ROOTFS_CFG)
+export SDIMAGE_CFG=$(printenv "$ACTIVE_DEVICE"_SDIMAGE_CFG)
+export PLATFORM_CFG=$(printenv "$ACTIVE_DEVICE"_PLATFORM_CFG)
 export ACTIVE_SDK=$(printenv "$ACTIVE_DEVICE"_SDK_CFG)
 export KERNEL_DTB=$(printenv "$ACTIVE_DEVICE"_KERNEL_DTB)
 
+export PLATFORM_SW=$(printenv "$PLATFORM_CFG"_PLATFORM_SW)
+
 export ROOTFS_BASE=$(printenv "$ROOTFS_CFG"_ROOTFS_BASE)
 export ROOTFS_ADDON=$(printenv "$ROOTFS_CFG"_ROOTFS_ADDON)
+
+export SDIMAGE_BOOTLOADER=$(printenv "$SDIMAGE_CFG"_SDIMAGE_BOOTLOADER)
+export SDIMAGE_BOOTLOADER_OFFSET=$(printenv "$SDIMAGE_CFG"_SDIMAGE_BOOTLOADER_OFFSET)
+export SDIMAGE_KERNEL=$(printenv "$SDIMAGE_CFG"_SDIMAGE_KERNEL)
+export SDIMAGE_ROOTFS=$(printenv "$SDIMAGE_CFG"_SDIMAGE_ROOTFS)
+# boot partition (FAT partition holding kernel and dtb) size, in MB:
+export SDIMAGE_BOOT_SIZE=$(printenv "$SDIMAGE_CFG"_SDIMAGE_BOOT_SIZE)
+# rootfs partition size, in MB:
+export SDIMAGE_ROOTFS_SIZE=$(printenv "$SDIMAGE_CFG"_SDIMAGE_ROOTFS_SIZE)
 
 # Double checking...
 if [ "$UBOOT_CFG" = "" -a "$KERNEL_CFG" = "" ]; then
@@ -620,7 +634,10 @@ export OUTPUT_DIR=$OUTPUT_ROOT/$ACTIVE_DEVICE
 export TARGET_ROOTFS=$OUTPUT_DIR/rootfs
 
 
-# Toolchain related setup
+#########################################################################
+# Toolchain setup
+#########################################################################
+
 # Calling into environment setup script in sdk
 # -----------------------------------------------------------------------
 source $ROOT_DIR/sdk/$ACTIVE_SDK/environment-setup.sh
@@ -633,21 +650,33 @@ fi
 export MAKEDEP_KERNEL=$ROOT_DIR/$KERNEL_DIR
 export MAKEDEP_ROOT=$SDK_SYSROOT
 export MAKEDEP_INC_KERNEL=$MAKEDEP_ROOT/usr/src/kernel/include
-export MAKEDEP_INC_KERNEL_ARM=$MAKEDEP_ROOT/usr/src/kernel/arch/arm/include
 export MAKEDEP_INC=$MAKEDEP_ROOT/usr/include
 export MAKEDEP_LIB=$MAKEDEP_ROOT/usr/lib
 
+if [ "$ACTIVE_SDK" = "a64" ]; then
+    export MAKEDEP_INC_KERNEL_ARM=$MAKEDEP_ROOT/usr/src/kernel/arch/arm64/include
+else
+    export MAKEDEP_INC_KERNEL_ARM=$MAKEDEP_ROOT/usr/src/kernel/arch/arm/include
+fi
+
+
+#########################################################################
 # Anchor for environment check
+#########################################################################
 export ENV_READY=1
+
 
 #########################################################################
 # Print the key configurations
 #########################################################################
 cechoi "Environment configuration:"
+cechoi "--------------------------------------------------------------------------------------------------"
 cechoi "\tACTIVE_DEVICE=$ACTIVE_DEVICE ($ACTIVE_SOC", "$ACTIVE_BOARD)"
+cechoi "\tACTIVE_SDK=$ACTIVE_SDK"
 cechoi "\tROOT_DIR=$ROOT_DIR"
 cechoi "\tARCH=$ARCH"
 cechoi "\tCROSS_COMPILE=$CROSS_COMPILE"
 cechoi "\tOUTPUT_DIR=$OUTPUT_DIR"
+cechoi "--------------------------------------------------------------------------------------------------"
 cechoi ""
 
