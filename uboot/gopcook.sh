@@ -53,8 +53,8 @@ function build_a64_bootloader()
 
     # Do install here, may move to "install" section later.
     cp u-boot.bin $OUTPUT_DIR/
-    cp u-boot-nodtb.bin $OUTPUT_DIR/
-    cp spl/u-boot-spl.bin $OUTPUT_DIR/
+    cp u-boot-nodtb.bin $OUTPUT_DIR/ 2>/dev/null
+    cp spl/u-boot-spl.bin $OUTPUT_DIR/ 2>/dev/null
     cp tools/mkimage $OUTPUT_DIR/mkimage_uboot
 }
 
