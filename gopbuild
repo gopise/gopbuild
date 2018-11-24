@@ -361,8 +361,8 @@ function process_all()
 function main() 
 {
     local act=$1
-    local starttime endtime
-    starttime="START: "$(date +%Y%m%d-%H:%M:%S)
+    local starttime endtime difftime hour min sec
+    starttime=`date +%s`
 
     cechoi "Build script for linux BSP"
 
@@ -407,11 +407,16 @@ function main()
     cechoi "Done!"
     
     # Record the end time and print it to log.
-    endtime="  END: "$(date +%Y%m%d-%H:%M:%S)
+    endtime=`date +%s`
+    difftime=$((endtime - starttime))
+
+    hour=$((difftime/4800))
+    min=$(((difftime%4800)/60))
+    sec=$((difftime%60))
+
     cecho "" 
     cechoi "--------------------------------------------------------------"
-    cechoi "${starttime}"
-    cechoi "${endtime}"
+    cechoa "${hour}:${min}:${sec}"
 }
 
 # Loopback check
