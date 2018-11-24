@@ -22,7 +22,7 @@ export ROOTFS_TARGET=rootfs.tar.bz2
 export SDIMAGE_NAME=fsl-image.sdcard
 export OUTPUT_ROOT=$ROOT_DIR/output
 
-export MAKE_THREADS="-j 4"
+export MAKE_THREADS="-j $(grep -c ^processor /proc/cpuinfo)"
 
 export MAKE_ROOTFS_TARBALL=0
 export MAKE_ROOTFS_SDIMAGE=1
