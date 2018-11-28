@@ -40,7 +40,7 @@ source build.cfg
 
 # Using "_UBOOT_CFG" as a anchor to search for supported 
 # device configurations
-export SUPPORTED_DEVICE=$(env | grep _UBOOT_CFG | sed "s/_UBOOT_CFG.*//")
+export SUPPORTED_DEVICE=$(env | grep _UBOOT_CFG | sed "s/_UBOOT_CFG.*//" | sort)
 export SUPPORTED_SDK=$(find $ROOT_DIR/sdk/* -maxdepth 0 -type d -a -not -iname "." -printf "%f ")
 
 
