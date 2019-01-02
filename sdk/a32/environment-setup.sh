@@ -4,7 +4,7 @@ export SDK_SYSROOT=$SDK_ROOT/target-rootfs
 export PATH=$SDK_ROOT/toolchain/usr/bin/arm-poky-linux-gnueabi:$PATH
 export OECORE_NATIVE_SYSROOT="$SDK_ROOT/toolchain"
 
-export COMPILER_PARAM="-march=armv7-a -mfloat-abi=hard -mfpu=neon -mtune=cortex-a9"
+export COMPILER_PARAM="-march=armv7-a -mfloat-abi=hard -mfpu=neon"
 export SYSROOT="--sysroot=$SDK_SYSROOT" 
 export CC="arm-poky-linux-gnueabi-gcc"
 export CXX="arm-poky-linux-gnueabi-g++"
