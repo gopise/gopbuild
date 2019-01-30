@@ -4,9 +4,12 @@ A simple build toolset for Linux BSP.
 Originally for "Yocto haters" who want to build a simple system without Yocto environment.
 It will use SDK from Yocto or any other source to build the bootloader, kernel and apps.
 
-1. Tested only on Freescale i.MX (6/7/8) platforms.
+Notes:
+1. Tested only on Freescale/NXP i.MX 6/7/8 platforms.
 2. A pre-built base rootfs image will be used as a foundation for customize.
-
+3. A SDCARD image will be made by default at the end of a building. This requires some
+   tools installed on the host system:
+        mtools, mke2fs (>=1.43)
 
 Quick start guide:
 -----------------------------------------------------------------------------------------
