@@ -9,7 +9,7 @@ Notes:
 2. A pre-built base rootfs image will be used as a foundation for customize.
 3. A SDCARD image will be made by default at the end of a building. This requires some
    tools installed on the host system:
-        mtools, mke2fs (>=1.43)
+        mtools, e2fsprogs (>=1.43)
 
 Quick start guide:
 -----------------------------------------------------------------------------------------
