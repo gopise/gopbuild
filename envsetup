@@ -278,29 +278,25 @@ function mksdimage_yocto()
 
     local sdcard_size=$(expr ${bootloader_size} + ${boot_size} + ${space_size} + ${rootfs_size} + ${space_size})
 
-    #exit
-
     # Prepare the boot partition image file
     # ------------------------------------------------
-    # Create spare file
-    dd if=/dev/zero of=boot.fat bs=1 count=0 seek=$(expr 1024 \* ${boot_size})
-
-    # Format the loop disks
-    mkfs.vfat boot.fat
-    
-    # Mount loop disks
+    # Prepare a boot folder containing files for boot partition
     mkdir boot-fat
-    mount -o loop boot.fat boot-fat
-
-    # Copy files into boot partition
     cp ../$SDIMAGE_KERNEL boot-fat
     cp ../*.dtb boot-fat
     sync
 
-    # Umount the boot partition
-    umount boot-fat
-    #rm -rf boot-fat
-   
+    # Create spare file
+    dd if=/dev/zero of=boot.fat bs=1 count=0 seek=$(expr 1024 \* ${boot_size})
+
+    # Format the loop disk
+    mkfs.vfat boot.fat
+    sync
+
+    # Copy all boot files into boot image
+    mcopy -i boot.fat -s boot-fat/* ::/
+    sync
+
     if [ ! -s boot.fat ]; then
         cechoe "Failed to generate boot.fat! Aborting..."
         cd ..
@@ -314,19 +310,9 @@ function mksdimage_yocto()
         # Create a sparse image
         dd if=/dev/zero of=rootfs.ext bs=1 count=0 seek=$(expr 1024 \* ${rootfs_size})
 
-        # Format the image
-        mkfs.ext3 -F rootfs.ext
-
-        # Mount the loop disk
-        mkdir rootfs-ext
-        mount -o loop rootfs.ext rootfs-ext
-
-        # Copy all files to the loop disk
-        cp -a ../rootfs/* rootfs-ext/
+        # Format the loop image and fill with rootfs
+        mkfs.ext4 -F rootfs.ext -d ../rootfs
         sync
-
-        # Umount the loop disk
-        umount rootfs-ext
     else
         ln -s ../$SDIMAGE_ROOTFS rootfs.ext
     fi
