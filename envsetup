@@ -608,6 +608,14 @@ export SDIMAGE_BOOT_SIZE=$(printenv "$SDIMAGE_CFG"_SDIMAGE_BOOT_SIZE)
 # rootfs partition size, in MB:
 export SDIMAGE_ROOTFS_SIZE=$(printenv "$SDIMAGE_CFG"_SDIMAGE_ROOTFS_SIZE)
 
+# processing the alternative arguments:
+# all args will be exported to env
+export ALT_ARGS=$(printenv "$ACTIVE_DEVICE"_ALT_ARGS)
+if [ ! $ALT_ARGS = "" ]; then
+    export $ALT_ARGS
+fi
+
+
 # Double checking...
 if [ "$UBOOT_CFG" = "" -a "$KERNEL_CFG" = "" ]; then
     cechoe "No configuration found for '$ACTIVE_DEVICE'!"
