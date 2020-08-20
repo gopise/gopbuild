@@ -611,10 +611,11 @@ export SDIMAGE_ROOTFS_SIZE=$(printenv "$SDIMAGE_CFG"_SDIMAGE_ROOTFS_SIZE)
 # processing the alternative arguments:
 # all args will be exported to env
 export ALT_ARGS=$(printenv "$ACTIVE_DEVICE"_ALT_ARGS)
-if [ ! $ALT_ARGS = "" ]; then
-    export $ALT_ARGS
+if [ ! "$ALT_ARGS" = "" ]; then
+    for args in $ALT_ARGS; do
+        export $args
+    done
 fi
-
 
 # Double checking...
 if [ "$UBOOT_CFG" = "" -a "$KERNEL_CFG" = "" ]; then
@@ -665,7 +666,7 @@ export ENV_READY=1
 #########################################################################
 cechoi "Environment configuration:"
 cechoi "--------------------------------------------------------------------------------------------------"
-cechoi "\tACTIVE_DEVICE=$ACTIVE_DEVICE ($ACTIVE_SOC", "$ACTIVE_BOARD)"
+cechoi "\tACTIVE_DEVICE=$ACTIVE_DEVICE ($ACTIVE_SOC","$REV","$ACTIVE_BOARD)"
 cechoi "\tACTIVE_SDK=$ACTIVE_SDK"
 cechoi "\tROOT_DIR=$ROOT_DIR"
 cechoi "\tARCH=$ARCH"
